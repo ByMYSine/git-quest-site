@@ -1,0 +1,37 @@
+# 每次开 PR 或推送到 main，都自动检查一遍网页
+name: 网页检查
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出仓库里的文件
+        uses: actions/checkout@v4
+
+      - name: 首页要有标题和手机适配
+        run: |
+          grep -q "<title>" index.html || { echo "::error file=index.html::缺少 <title> 标题"; exit 1; }
+          grep -q 'name="viewport"' index.html || { echo "::error file=index.html::缺少 viewport，手机上会显示得很小"; exit 1; }
+
+      - name: 每张图片都要有 alt 文字
+        run: |
+          bad=$(grep -n "<img" index.html | grep -v "alt=" || true)
+          if [ -n "$bad" ]; then
+            echo "$bad"
+            echo "::error file=index.html::有图片缺少 alt 文字（给看不见图片的人读的说明）"
+            exit 1
+          fi
+
+      - name: 页面引用的本地文件都要存在
+        run: |
+          for f in $(grep -o 'src="[^":]*"' index.html | sed 's/src="//; s/"$//'); do
+            [ -f "$f" ] || { echo "::error file=index.html::找不到文件 $f"; exit 1; }
+          done
